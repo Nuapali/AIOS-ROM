@@ -1,30 +1,35 @@
-name: Build Tum AI Assistant App
+name: Build PixelOS for citrus (Android 13 Vanilla)
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+jobs: build: runs-on: ubuntu-latest container: image: ghcr.io/ponces/lineage_buildenv_arm64:latest timeout-minutes: 720 steps: - name: Check out the source uses: actions/checkout@v4
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+- name: Initialize environment
+    run: |
+      git config --global user.name "AjayDash"
+      git config --global user.email "ajay@example.com"
 
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: 17
+  - name: Sync ROM source
+    run: |
+      repo init -u https://github.com/PixelOS-AOSP/manifest -b thirteen --depth=1
+      repo sync -c --force-sync --no-clone-bundle --no-tags -j$(nproc --all)
 
-    - name: Give Gradle Permission
-      run: chmod +x ./gradlew
+  - name: Clone device trees
+    run: |
+      git clone --depth=1 https://github.com/PixelOS-Devices/device_xiaomi_citrus.git -b thirteen device/xiaomi/citrus
+      git clone --depth=1 https://github.com/PixelOS-Devices/vendor_xiaomi_citrus.git -b thirteen vendor/xiaomi/citrus
+      git clone --depth=1 https://github.com/PixelOS-Devices/kernel_xiaomi_sm6115.git -b thirteen kernel/xiaomi/sm6115
 
-    - name: Build APK
-      run: ./gradlew assembleDebug
+  - name: Setup environment
+    run: source build/envsetup.sh && lunch aosp_citrus-userdebug
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: TumAI-Assistant-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+  - name: Start build
+    run: |
+      mka bacon -j$(nproc --all)
+
+  - name: Upload ROM to Artifacts
+    uses: actions/upload-artifact@v4
+    with:
+      name: PixelOS-Vanilla-citrus
+      path: out/target/product/citrus/*.zip
+
