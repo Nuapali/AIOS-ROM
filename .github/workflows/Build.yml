@@ -5,51 +5,48 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ponces/lineage_buildenv_arm64:latest
     timeout-minutes: 720
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev \
-          gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev \
-          libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip bc python3 \
-          default-jdk ccache libtinfo5 libncurses5
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
       - name: Install repo
         run: |
           mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
-          echo 'export PATH=~/bin:$PATH' >> $GITHUB_ENV
-
-      - name: Set Git identity
-        run: |
-          git config --global user.name "AjayDash"
-          git config --global user.email "ajay@example.com"
+          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
 
       - name: Sync ROM source
         run: |
+          export PATH=$HOME/bin:$PATH
           mkdir rom && cd rom
           repo init -u https://github.com/PixelOS-AOSP/manifest -b thirteen --depth=1
           repo sync -c --force-sync --no-clone-bundle --no-tags -j$(nproc --all)
 
-      - name: Clone device trees
+      - name: Clone device sources
         run: |
           cd rom
           git clone --depth=1 https://github.com/PixelOS-Devices/device_xiaomi_citrus.git -b thirteen device/xiaomi/citrus
           git clone --depth=1 https://github.com/PixelOS-Devices/vendor_xiaomi_citrus.git -b thirteen vendor/xiaomi/citrus
           git clone --depth=1 https://github.com/PixelOS-Devices/kernel_xiaomi_sm6115.git -b thirteen kernel/xiaomi/sm6115
 
-      - name: Build ROM
+      - name: Setup build environment
         run: |
           cd rom
           source build/envsetup.sh
           lunch aosp_citrus-userdebug
+
+      - name: Start ROM build
+        run: |
+          cd rom
           mka bacon -j$(nproc --all)
 
-      - name: Upload ROM
+      - name: Upload ROM artifact
         uses: actions/upload-artifact@v4
         with:
           name: PixelOS-Vanilla-citrus
